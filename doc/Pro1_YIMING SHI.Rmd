@@ -29,6 +29,8 @@ library(reshape2)
 ###Step.1 Loading, merging datasets
 
 First, I loaded "processed_moments.csv" from the Fall2018-Proj1-Yiming001/output folder named hm_data, and also loaded the "demographic.csv" named "demo_data", these two files include variables I need. Then, I combined these two dataset into one dataset in order to better use the infomation in these two dataset.
+
+
 ```{r load data, echo = FALSE, warning=FALSE, message=FALSE}
 hm_data <- read_csv("/Users/Yiming/Desktop/Fall2018-Proj1-Yiming001/output/processed_moments.csv")
 
@@ -91,7 +93,8 @@ word_count %>%
 
 
 ###Step.3 Split dataset
-I am just really interested in whether there exist any differences in happy moments betIen countries. So in the first step, I have to figure out how to split the dataset depending on country, I used ggplot to see the distribution of country. And I found there exist two outliers (USA and IND) and other countries almost lie on the horizontal line. Then, I splited the dataset into three subsets, so that the first one only contains the all information about USA country, the second one only contains the all information about IND country, and the third one contains the all information about other countries except USA and IND.  I can start our analysis by using these three datasets!
+I am just really interested in whether there exist any differences in happy moments between countries. So in the first step, I have to figure out how to split the dataset depending on country, I used ggplot to see the distribution of country. And I found there exist two outliers (USA and IND) and other countries almost lie on the horizontal line. Then, I splited the dataset into three subsets(US, IND, OTHERS), so that the first one only contains the all information about USA country, the second one only contains the all information about IND country, and the third one contains the all information about other countries except USA and IND.  I can start our analysis by using these three datasets!
+
 ```{r,echo = FALSE, warning=FALSE, message=FALSE}
 #I can see there are two outliers, now I select these two countries to see which two countries are. From the datatable, I can see these two countries are USA and IND, others are less than 600, so small.
 ggplot(hm_data, aes(country,..count..))+geom_point(stat="count", size=3)+labs(title="Distribution of Country ", x="Country")
@@ -101,7 +104,8 @@ country_count<-as.data.frame(table(hm_data$country))
 country_two<-country_count[order(country_count$Freq, decreasing = TRUE),]
 ```
 
-I can see there are two outliers, now I select these two countries to see which two countries are. From the datatable, I can see top two countries are USA and IND (Frequency: larger than 10000), others are less than 600, so small, indicating I can split into three categories.
+From the graph, I can see there are two outliers, now I need to see which two countries are. From the datatable, I can see top two countries are USA and IND (Frequency: larger than 10000), others are less than 600, so small, indicating I can split into three country groups.
+
 ```{r,echo = FALSE, warning=FALSE, message=FALSE}
 datatable(country_two)
 ```
@@ -133,7 +137,8 @@ word_count_others <- bag_of_words_others %>%
 
 
 ###Step.3 Word Cloud for three country groups
-Let's look at the wordcloud first! The wordclouds show that in each country group, which word appears most frequently, the larger the word is. Every wordcloud is followed by the corresponding word frequency plot. I can see the first three most common words are "friend", "time", "day", matching the top three most common words in step 2 (whole dataset). But I also find there are special frequently words for different groups. For USA, like "played", "dinner", "game". For IND, like "birthday", "enjoy", "life".  
+Let's look at the wordcloud first! The wordclouds show that in each country group, which word appears most frequently, the larger the word is. Every wordcloud is followed by the corresponding word frequency plot. I can see the first three most common words are "friend", "time", "day", matching the top three most common words in step 2 (whole dataset). But I also found there are special frequently words for different groups. For USA, like "played", "dinner", "game". For IND, like "birthday", "enjoy", "life".  
+
 
 ```{r,echo = FALSE, warning=FALSE, message=FALSE}
 require(devtools)
@@ -221,6 +226,8 @@ barplot(colSums(table(sum.others.nrc)), col = "yellow",
 ```
 
 I am interested in "Most common positive and negative words" in Happy Moments for USA group. So I used "bing" to show the "Most common positive and negative words"for USA group. Finally, I get the top ten most common negative sentiment words are "hard", "lost", "funny", "hang", "break", "unexpected", "bad", "stress", "sick", "issues". The top ten most common positive sentiment words are "nice", "favorite", "love", "enjoyed", "won", "fun", "happiness", "excited", "free", "helped". 
+
+
 ```{r,echo = FALSE, warning=FALSE, message=FALSE}
 # USA bing Sentiment
 usa.bing <- merge(x =word_count_usa , y = get_sentiments("bing"), by.x = "word", by.y = "word")
@@ -248,8 +255,8 @@ usa.bing.new %>%
 ```
 
 
-###Step.5 Test "happiness U-Curve" theory 
-Previsouly, I read an essay about happiness U-Curve with age. The happiness U-Curve indicates that "Happiness declines with age for about two decades from early adulthood up until roughly the middle-age years, and then turns upward and increases with age." I want to use three country group to test this theory. Firstly, I split each country group into 4 different age groups: under20;between20and35; between35and50 and 50above.  Then, in each country group, I summed the word frequency for each age groups, then plot. Finally, I found in these three country groups, none of them followed the "U-Curve" theory.
+###Step.5 Test "Happiness U-Curve" theory 
+Previsouly, I read an essay about Happiness U-Curve with age. The Happiness U-Curve indicates that "Happiness declines with age for about two decades from early adulthood up until roughly the middle-age years, and then turns upward and increases with age." I want to use three country group to test this theory. Firstly, I split each country group into 4 different age groups: under20;between20and35; between35and50 and 50above.  Then, in each country group, I summed the word frequency for each age groups, then plot. Finally, I found in these three country groups, none of them followed the U-Curve. Thus, if I want to prove this theory, we need more data to analyze.
 
 
 
@@ -346,13 +353,12 @@ plot(x,y3,type="l", col="red",main="OTHERS AGE Distribution",  xlab="AGE")
 
 
 ###Step.6 Topic Modeling
-Beside the sentiments analysis, I did basic topic modeling for the 3 country groups. Firstly, I created a document term matrix.
-After generating the document-term-matrix, I started LDA. I chose 7 topics since the original dataset happy has 7 predicted_categories. After running LDA, I checkd the per-document-per-word probability for each group.
+I did basic topic modeling for the 3 country groups. Firstly, I created a Document-Term matrix to format the files to enable analysis of the term. After generating the Document-Term matrix, I started LDA. I used LDA to identify “n”" topics (in this case I have chosen 7 topics as predicted_categories) through a process of iterative allocation of the documents to each topic. 
 
 
 
 
-```{r}
+```{r,echo = FALSE, warning=FALSE, message=FALSE}
 # Generate document-term matirx
 doc<-rbind(paste(hm_usa$text,collapse = " "),paste(hm_ind$text,collapse = " "),
            paste(hm_others$text,collapse = " "))
@@ -371,11 +377,31 @@ best<-TRUE
 k <- 7
 #Run LDA using Gibbs sampling for group under 25
 ldaOut <- LDA(dtm, k, method="Gibbs", control = list(burnin = burnin,iter = iter, thin=thin, seed = seed, nstart = nstart,best = best))
+```
+Now I can review the Topics and Topic allocation, view the top 6 terms for each of the 7 topics
+
+```{r,echo = FALSE, warning=FALSE, message=FALSE}
+terms(ldaOut,6)
+```
+
+
+
+Then I checked the per-document-per-word probability for each group. For example, on the first row, I can see that the probability of a word generating from Topic 1 in USA group is 0.177980543293706. On the fifth row, the probability of a word generating from Topic 2 in IND group is 0.100179540688083.
+
+
+```{r,echo = FALSE, warning=FALSE, message=FALSE}
 #per-document-per-word probability
-group_gamma<-tidy(ldaOut, matrix = "gamma")
-datatable(group_gamma)
-# Visulize the per-document-per-word probability
-group_gamma%>%
+gamma_group<-tidy(ldaOut, matrix = "gamma")
+datatable(gamma_group)
+```
+
+
+
+Then visulizing the per-document-per-word probability. The graph shows the topic probability for each group. For example, in the US group, Topic 7 has the most probability which has a value around 0.7, indicating that nearly 70 percent of the words in US group are from Topic 7. 
+
+```{r,echo = FALSE, warning=FALSE, message=FALSE}
+
+gamma_group%>%
   ggplot(aes(factor(topic),gamma))+
   geom_boxplot()+
   theme(panel.background = element_rect(fill = "lightpink",
@@ -387,3 +413,31 @@ group_gamma%>%
                                 colour = "white"))+
   facet_wrap(~document)
 ```
+
+
+```{r,echo = FALSE, warning=FALSE, message=FALSE}
+df <- data.frame(term = ldaOut@terms, p = exp(ldaOut@gamma[7,]))
+wordcloud(words = df$terms,
+          freq = df$p,
+          max.words = 30,
+          random.order = FALSE,
+          rot.per = 0.35,
+          colors=brewer.pal(8, "Dark2"))
+
+
+
+```
+
+###Write out results
+```{r,echo = FALSE, warning=FALSE, message=FALSE}
+#words to topics
+lda_topics <- as.matrix(topics(ldaOut,1))
+write.csv(ldaOut.topics,file=paste("/Users/Yiming/Desktop/Fall2018-Proj1-Yiming001/output/LDAGibbs",k,"Topics_Words.csv"))
+
+#Top 50 terms in each topic
+lda_terms <- as.matrix(terms(ldaOut,50))
+write.csv(ldaOut.terms,file=paste("/Users/Yiming/Desktop/Fall2018-Proj1-Yiming001/output/LDAGibbs",k,"Topics_Terms.csv"))
+
+#probabilities associated with each topic
+topic_Pro <- as.matrix(ldaOut@gamma)
+write.csv(topic_Pro,file=paste("/Users/Yiming/Desktop/Fall2018-Proj1-Yiming001/output/LDAGibbs",k,"topic_Pro.csv"))
