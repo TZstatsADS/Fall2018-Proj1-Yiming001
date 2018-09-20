@@ -1,0 +1,389 @@
+---
+title: "pro1"
+author: "Yiming Shi"
+date: "9/13/2018"
+output: html_document
+---
+
+
+### Step.0 Loading Packages
+```{r load libraries, warning=FALSE, message=FALSE}
+
+library(tidyverse)
+library(tidytext)
+library(DT)
+library(scales)
+library(wordcloud2)
+library(gridExtra)
+library(ngram)
+library(shiny) 
+library(igraph)
+library(ggplot2)
+library(dplyr)
+library(tm)
+library(topicmodels)
+library(reshape2)
+```
+
+
+###Step.1 Loading, merging datasets
+
+First, I loaded "processed_moments.csv" from the Fall2018-Proj1-Yiming001/output folder named hm_data, and also loaded the "demographic.csv" named "demo_data", these two files include variables I need. Then, I combined these two dataset into one dataset in order to better use the infomation in these two dataset.
+```{r load data, echo = FALSE, warning=FALSE, message=FALSE}
+hm_data <- read_csv("/Users/Yiming/Desktop/Fall2018-Proj1-Yiming001/output/processed_moments.csv")
+
+urlfile<-'https://raw.githubusercontent.com/rit-public/HappyDB/master/happydb/data/demographic.csv'
+demo_data <- read_csv(urlfile)
+```
+
+
+```{r combining data, echo = FALSE, warning=FALSE, message=FALSE}
+#Combine both the data sets and keep the required columns for analysis. I select a subset of the data that satisfies specific row conditions.
+
+hm_data <- hm_data %>%
+  inner_join(demo_data, by = "wid") %>%
+  select(wid,
+         original_hm,
+         gender, 
+         marital, 
+         parenthood,
+         reflection_period,
+         age, 
+         country, 
+         ground_truth_category, 
+         text) %>%
+  mutate(count = sapply(hm_data$text, wordcount)) %>%
+  filter(gender %in% c("m", "f")) %>%
+  filter(marital %in% c("single", "married")) %>%
+  filter(parenthood %in% c("n", "y")) %>%
+  filter(reflection_period %in% c("24h", "3m")) %>%
+  mutate(reflection_period = fct_recode(reflection_period, 
+                                        months_3 = "3m", hours_24 = "24h"))
+
+
+```
+
+
+```{r bag of words, echo = FALSE, warning=FALSE, message=FALSE}
+# Create a bag of words using the text data
+bag_of_words <- hm_data %>%
+  unnest_tokens(word, text)
+```
+
+
+```{r, echo = FALSE, warning=FALSE, message=FALSE}
+# Calculate the frequency for each word
+word_count <- bag_of_words %>%
+  count(word, sort = TRUE)
+```
+
+###Step.2 Create a visualization of the most common words 
+I can see the top ten most common words in happy moments are "friend", "time", "day", "played", "watched", "event", "home", "game", "family", "feel".
+
+
+```{r,echo = FALSE, warning=FALSE, message=FALSE}
+word_count %>% 
+  filter(n > 2000) %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(word, n)) + geom_col() + xlab(NULL) + coord_flip()
+
+```
+
+
+###Step.3 Split dataset
+I am just really interested in whether there exist any differences in happy moments betIen countries. So in the first step, I have to figure out how to split the dataset depending on country, I used ggplot to see the distribution of country. And I found there exist two outliers (USA and IND) and other countries almost lie on the horizontal line. Then, I splited the dataset into three subsets, so that the first one only contains the all information about USA country, the second one only contains the all information about IND country, and the third one contains the all information about other countries except USA and IND.  I can start our analysis by using these three datasets!
+```{r,echo = FALSE, warning=FALSE, message=FALSE}
+#I can see there are two outliers, now I select these two countries to see which two countries are. From the datatable, I can see these two countries are USA and IND, others are less than 600, so small.
+ggplot(hm_data, aes(country,..count..))+geom_point(stat="count", size=3)+labs(title="Distribution of Country ", x="Country")
+
+
+country_count<-as.data.frame(table(hm_data$country))
+country_two<-country_count[order(country_count$Freq, decreasing = TRUE),]
+```
+
+I can see there are two outliers, now I select these two countries to see which two countries are. From the datatable, I can see top two countries are USA and IND (Frequency: larger than 10000), others are less than 600, so small, indicating I can split into three categories.
+```{r,echo = FALSE, warning=FALSE, message=FALSE}
+datatable(country_two)
+```
+
+```{r,echo = FALSE, warning=FALSE, message=FALSE}
+#split datasets
+hm_usa<-subset(hm_data, country=='USA')
+bag_of_words_usa <- hm_usa %>%
+  unnest_tokens(word, text)
+word_count_usa <- bag_of_words_usa %>%
+  count(word, sort = TRUE)
+
+
+hm_ind<-subset(hm_data, country=='IND')
+bag_of_words_ind <- hm_ind %>%
+  unnest_tokens(word, text)
+word_count_ind <- bag_of_words_ind %>%
+  count(word, sort = TRUE)
+
+
+hm_others<-subset(hm_data, !country %in% c('USA', 'IND'))
+bag_of_words_others <- hm_others %>%
+  unnest_tokens(word, text)
+word_count_others <- bag_of_words_others %>%
+  count(word, sort = TRUE)
+
+```
+
+
+
+###Step.3 Word Cloud for three country groups
+Let's look at the wordcloud first! The wordclouds show that in each country group, which word appears most frequently, the larger the word is. Every wordcloud is followed by the corresponding word frequency plot. I can see the first three most common words are "friend", "time", "day", matching the top three most common words in step 2 (whole dataset). But I also find there are special frequently words for different groups. For USA, like "played", "dinner", "game". For IND, like "birthday", "enjoy", "life".  
+
+```{r,echo = FALSE, warning=FALSE, message=FALSE}
+require(devtools)
+install_github("lchiffon/wordcloud2",force = TRUE)
+library(wordcloud2)
+
+usa<-word_count_usa %>% slice(1:60)
+wordcloud2(usa, size = 0.6, minSize = 0, gridSize =  0,
+    fontFamily = NULL, fontWeight = 'normal', 
+    color = 'random-dark', backgroundColor = "white",
+    minRotation = -pi/4, maxRotation = pi/4, rotateRatio = 0.4,
+    shape = 'circle', ellipticity = 0.65, widgetsize = NULL)
+
+word_count_usa %>% 
+  filter(n > 1500) %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(word, n)) + geom_col() + xlab(NULL) + coord_flip()+labs(title = "USA Word Frequency")
+
+
+ind<-word_count_ind %>% slice(1:60)
+wordcloud2(ind, size = 0.6, minSize = 0, gridSize =  0,
+    fontFamily = NULL, fontWeight = 'normal',
+    color = 'random-dark', backgroundColor = "white",
+    minRotation = -pi/4, maxRotation = pi/4, rotateRatio = 0.4,
+    shape = 'circle', ellipticity = 0.65, widgetsize = NULL)
+
+word_count_ind %>% 
+  filter(n > 500) %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(word, n)) + geom_col() + xlab(NULL) + coord_flip()+labs(title = "IND Word Frequency")
+
+others<-word_count_others %>% slice(1:60)
+wordcloud2(others, size = 0.6, minSize = 0, gridSize =  0,
+    fontFamily = NULL, fontWeight = 'normal',
+    color = 'random-dark', backgroundColor = "white",
+    minRotation = -pi/4, maxRotation = pi/4, rotateRatio = 0.4,
+    shape = 'circle', ellipticity = 0.65, widgetsize = NULL)
+word_count_others %>% 
+  filter(n > 100) %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(word, n)) + geom_col() + xlab(NULL) + coord_flip()+labs(title = "Others Word Frequency")
+
+
+```
+
+
+
+###Step.4 Words Sentiment Analysis 
+I created NRC word setiments histogram for each country group, and I compared the sentiments distributions among three groups. I found the sentiments distributions for 3 groups are relatively simillar. But "positive" is higher than "negative" in IND and OTHERS, "positive" is a little bit lower than "negative" in USA.
+
+
+```{r,echo = FALSE, warning=FALSE, message=FALSE}
+# USA NRC Sentiment
+usa.nrc <- merge(x =word_count_usa , y = get_sentiments("nrc"), by.x = "word", by.y = "word")
+names(usa.nrc)[names(usa.nrc) == "n"] <- "Frequency"
+sum.usa.nrc <- usa.nrc %>% select(Frequency, sentiment) 
+# colSums(table(table(sum.ind.nrc))
+barplot(colSums(table(sum.usa.nrc)), col = "purple",
+        main = "USA Word Frequency VS Word Sentiment",
+        ylab = "Frequency", xlab = "Sentiment",
+        border = NA, cex.names=0.7)
+
+# INA NRC Sentiment
+ind.nrc <- merge(x =word_count_ind , y = get_sentiments("nrc"), by.x = "word", by.y = "word")
+names(ind.nrc)[names(ind.nrc) == "n"] <- "Frequency"
+sum.ind.nrc <- ind.nrc %>% select(Frequency, sentiment) 
+# colSums(table(table(sum.ind.nrc))
+barplot(colSums(table(sum.ind.nrc)), col = "red",
+        main = "IND Word Frequency VS Word Sentiment",
+        ylab = "Frequency", xlab = "Sentiment",
+        border = NA, cex.names=0.7)
+
+
+# OTHERS NRC Sentiment
+others.nrc <- merge(x =word_count_others , y = get_sentiments("nrc"), by.x = "word", by.y = "word")
+names(others.nrc)[names(others.nrc) == "n"] <- "Frequency"
+sum.others.nrc <- others.nrc %>% select(Frequency, sentiment) 
+# colSums(table(table(sum.others.nrc))
+barplot(colSums(table(sum.others.nrc)), col = "yellow",
+        main = "OTHERS Word Frequency VS Word Sentiment",
+        ylab = "Frequency", xlab = "Sentiment",
+        border = NA, cex.names=0.7)
+
+
+```
+
+I am interested in "Most common positive and negative words" in Happy Moments for USA group. So I used "bing" to show the "Most common positive and negative words"for USA group. Finally, I get the top ten most common negative sentiment words are "hard", "lost", "funny", "hang", "break", "unexpected", "bad", "stress", "sick", "issues". The top ten most common positive sentiment words are "nice", "favorite", "love", "enjoyed", "won", "fun", "happiness", "excited", "free", "helped". 
+```{r,echo = FALSE, warning=FALSE, message=FALSE}
+# USA bing Sentiment
+usa.bing <- merge(x =word_count_usa , y = get_sentiments("bing"), by.x = "word", by.y = "word")
+usa.bing.new<-usa.bing[order(usa.bing$n, decreasing = TRUE),]
+names(usa.bing.new)[names(usa.bing.new) == "n"] <- "Frequency"
+
+sum.bing <- usa.bing.new %>% select(Frequency, sentiment) 
+# colSums(table(table(sum.usa.nrc))
+barplot(colSums(table(sum.bing)), col = "lightskyblue1",
+        main = "USA Word Frequency VS Word Sentiment",
+        ylab = "Frequency", xlab = "Sentiment",
+        border = NA, cex.names=0.7)
+
+usa.bing.new %>%
+  group_by(sentiment) %>%
+  top_n(n = 10,Frequency) %>%
+  ungroup() %>%
+  mutate(word = reorder(word, Frequency))%>%
+  ggplot(aes(word, Frequency, fill = sentiment))+
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~sentiment, scales = "free_y") +
+  labs(y = "Contribution to sentiment",
+       x = NULL) +
+  coord_flip()
+```
+
+
+###Step.5 Test "happiness U-Curve" theory 
+Previsouly, I read an essay about happiness U-Curve with age. The happiness U-Curve indicates that "Happiness declines with age for about two decades from early adulthood up until roughly the middle-age years, and then turns upward and increases with age." I want to use three country group to test this theory. Firstly, I split each country group into 4 different age groups: under20;between20and35; between35and50 and 50above.  Then, in each country group, I summed the word frequency for each age groups, then plot. Finally, I found in these three country groups, none of them followed the "U-Curve" theory.
+
+
+
+```{r,echo = FALSE, warning=FALSE, message=FALSE}
+par(mfrow=c(1,3))
+hm_1_usa<-subset(hm_usa,age<=20)
+bag_of_words_1_usa <- hm_1_usa %>%
+  unnest_tokens(word, text)
+word_count_1_usa <- bag_of_words_1_usa %>%
+  count(word, sort = TRUE)
+age1_usa<-sum(word_count_1_usa$n)
+hm_2_usa<-subset(hm_usa,age>20 & age<=35)
+bag_of_words_2_usa <- hm_2_usa %>%
+  unnest_tokens(word, text)
+word_count_2_usa <- bag_of_words_2_usa %>%
+  count(word, sort = TRUE)
+age2_usa<-sum(word_count_2_usa$n)
+hm_3_usa<-subset(hm_usa,age>35 & age<=50)
+bag_of_words_3_usa <- hm_3_usa %>%
+  unnest_tokens(word, text)
+word_count_3_usa <- bag_of_words_3_usa %>%
+  count(word, sort = TRUE)
+age3_usa<-sum(word_count_3_usa$n)
+hm_4_usa<-subset(hm_usa,age>50)
+bag_of_words_4_usa <- hm_4_usa %>%
+  unnest_tokens(word, text)
+word_count_4_usa <- bag_of_words_4_usa %>%
+  count(word, sort = TRUE)
+age4_usa<-sum(word_count_4_usa$n)
+x<-c(1,2,3,4)
+y1<-c(age1_usa,age2_usa,age3_usa,age4_usa)
+plot(x,y1,type="l", col="green", main="USA AGE Distribution", xlab="AGE")
+
+hm_1_ind<-subset(hm_ind,age<=20)
+bag_of_words_1_ind <- hm_1_ind %>%
+  unnest_tokens(word, text)
+word_count_1_ind <- bag_of_words_1_ind %>%
+  count(word, sort = TRUE)
+age1_ind<-sum(word_count_1_ind$n)
+hm_2_ind<-subset(hm_ind,age>20 & age<=35)
+bag_of_words_2_ind <- hm_2_ind %>%
+  unnest_tokens(word, text)
+word_count_2_ind <- bag_of_words_2_ind %>%
+  count(word, sort = TRUE)
+age2_ind<-sum(word_count_2_ind$n)
+hm_3_ind<-subset(hm_ind,age>35 & age<=50)
+bag_of_words_3_ind <- hm_3_ind %>%
+  unnest_tokens(word, text)
+word_count_3_ind <- bag_of_words_3_ind %>%
+  count(word, sort = TRUE)
+age3_ind<-sum(word_count_3_ind$n)
+hm_4_ind<-subset(hm_ind,age>50)
+bag_of_words_4_ind <- hm_4_ind %>%
+  unnest_tokens(word, text)
+word_count_4_ind <- bag_of_words_4_ind %>%
+  count(word, sort = TRUE)
+age4_ind<-sum(word_count_4_ind$n)
+x<-c(1,2,3,4)
+y2<-c(age1_ind,age2_ind,age3_ind,age4_ind)
+plot(x,y2,type="l", col="blue",main="IND AGE Distribution", xlab="AGE")
+
+
+hm_1_others<-subset(hm_others,age<=20)
+bag_of_words_1_others <- hm_1_others %>%
+  unnest_tokens(word, text)
+word_count_1_others <- bag_of_words_1_others %>%
+  count(word, sort = TRUE)
+age1_others<-sum(word_count_1_others$n)
+hm_2_others<-subset(hm_others,age>20 & age<=35)
+bag_of_words_2_others <- hm_2_others %>%
+  unnest_tokens(word, text)
+word_count_2_others <- bag_of_words_2_others %>%
+  count(word, sort = TRUE)
+age2_others<-sum(word_count_2_others$n)
+hm_3_others<-subset(hm_others,age>35 & age<=50)
+bag_of_words_3_others <- hm_3_others %>%
+  unnest_tokens(word, text)
+word_count_3_others <- bag_of_words_3_others %>%
+  count(word, sort = TRUE)
+age3_others<-sum(word_count_3_others$n)
+hm_4_others<-subset(hm_others,age>50)
+bag_of_words_4_others <- hm_4_others %>%
+  unnest_tokens(word, text)
+word_count_4_others <- bag_of_words_4_others %>%
+  count(word, sort = TRUE)
+age4_others<-sum(word_count_4_others$n)
+x<-c(1,2,3,4)
+y3<-c(age1_others,age2_others,age3_others,age4_others)
+plot(x,y3,type="l", col="red",main="OTHERS AGE Distribution",  xlab="AGE")
+
+
+
+```
+
+
+###Step.6 Topic Modeling
+Beside the sentiments analysis, I did basic topic modeling for the 3 country groups. Firstly, I created a document term matrix.
+After generating the document-term-matrix, I started LDA. I chose 7 topics since the original dataset happy has 7 predicted_categories. After running LDA, I checkd the per-document-per-word probability for each group.
+
+
+
+
+```{r}
+# Generate document-term matirx
+doc<-rbind(paste(hm_usa$text,collapse = " "),paste(hm_ind$text,collapse = " "),
+           paste(hm_others$text,collapse = " "))
+
+corpus<- Corpus(VectorSource(doc))
+dtm <- DocumentTermMatrix(corpus)
+rownames(dtm)<-c("USA","IND","OTHERS")
+# Set parameters for Gibbs sampling
+burnin<-4000
+iter<-2000
+thin<-500
+seed <-list(2003,5,63,100001,765)
+nstart<-5
+best<-TRUE
+#Number of topics
+k <- 7
+#Run LDA using Gibbs sampling for group under 25
+ldaOut <- LDA(dtm, k, method="Gibbs", control = list(burnin = burnin,iter = iter, thin=thin, seed = seed, nstart = nstart,best = best))
+#per-document-per-word probability
+group_gamma<-tidy(ldaOut, matrix = "gamma")
+datatable(group_gamma)
+# Visulize the per-document-per-word probability
+group_gamma%>%
+  ggplot(aes(factor(topic),gamma))+
+  geom_boxplot()+
+  theme(panel.background = element_rect(fill = "lightpink",
+                                colour = "lightpink",
+                                size = 0.5, linetype = "solid"),
+        panel.grid.major = element_line(size = 0.5, linetype = 'solid',
+                                colour = "white"), 
+        panel.grid.minor = element_line(size = 0.25, linetype = 'solid',
+                                colour = "white"))+
+  facet_wrap(~document)
+```
