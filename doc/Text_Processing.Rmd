@@ -7,10 +7,11 @@ output:
 ---
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE) # no code display 
 ```
 
-HappyDB is a corpus of 100,000 crowd-sourced happy moments via Amazon's Mechanical Turk. You can read more about it on https://arxiv.org/abs/1801.07746
+HappyDB is a corpus of 100,000 crowd-sourced happy moments via Amazon's Mechanical Turk. You can read more about it on https://arxiv.org/ay
+bs/1801.07746
 
 In this R notebook, we process the raw textual data for our data analysis.
 
@@ -28,6 +29,7 @@ library(tm)
 library(tidytext)
 library(tidyverse)
 library(DT)
+library(dplyr)
 ```
 
 ### Step 1 - Load the data to be cleaned and processed
@@ -52,12 +54,14 @@ corpus <- VCorpus(VectorSource(hm_data$cleaned_hm))%>%
 
 ### Step 3 - Stemming words and converting tm object to tidy object
 
-Stemming reduces a word to its word *stem*. We stem the words here and then convert the "tm" object to a "tidy" object for much faster processing.
+Stemming reduces a word to its word *stem*. We stem the words here and then convert the "tm" object to a "tidy" object for much faster processing. 
 
 ```{r stemming}
-stemmed <- tm_map(corpus, stemDocument) %>%
-  tidy() %>%
-  select(text)
+library(dplyr)
+stemmed <-tm_map(corpus, stemDocument) %>%  #stemDocument:Stem words in a text document using Porter's stemming algorithm.
+  tidy() %>% 
+  select(text)  
+#change to dataframe
 ```
 
 ### Step 4 - Creating tidy format of the dictionary to be used for completing stems
@@ -81,7 +85,7 @@ word <- c("happy","ago","yesterday","lot","today","months","month",
                  "happier","happiest","last","week","past")
 
 stop_words <- stop_words %>%
-  bind_rows(mutate(tibble(word), lexicon = "updated"))
+  bind_rows(mutate(tibble(word), lexicon = "updated")) #tibble() is a nice way to create data frames.
 ```
 
 ### Step 6 - Combining stems and dictionary into the same tibble
@@ -93,7 +97,7 @@ completed <- stemmed %>%
   mutate(id = row_number()) %>%
   unnest_tokens(stems, text) %>%
   bind_cols(dict) %>%
-  anti_join(stop_words, by = c("dictionary" = "word"))
+  anti_join(stop_words, by = c("dictionary" = "word")) #In the stop_words data object in tidytext, the column is called word and in your dataframe, it is called dictionary. 
 ```
 
 ### Step 7 - Stem completion
@@ -102,7 +106,7 @@ Lastly, we complete the stems by picking the corresponding word with the highest
 
 ```{r stem completion, warning=FALSE, message=FALSE}
 completed <- completed %>%
-  group_by(stems) %>%
+  group_by(stems)%>%
   count(dictionary) %>%
   mutate(word = dictionary[which.max(n)]) %>%
   ungroup() %>%

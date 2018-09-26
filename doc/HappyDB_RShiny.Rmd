@@ -19,7 +19,7 @@ From the packages' descriptions:
 + `scales` map data to aesthetics, and provide methods for automatically determining breaks and labels for axes and legends;
 + `wordcloud2` provides an HTML5 interface to wordcloud for data visualization;
 + `gridExtra` contains miscellaneous functions for "grid" graphics;
-+ `ngram` is for constructing n-grams (“tokenizing”), as well as generating new text based on the n-gram structure of a given text input (“babbling”);
++ `ngram` is for constructing n-grams (???tokenizing???), as well as generating new text based on the n-gram structure of a given text input (???babbling???);
 + `Shiny` is an R package that makes it easy to build interactive web apps straight from R;
 
 ```{r load libraries, warning=FALSE, message=FALSE}
@@ -32,6 +32,7 @@ library(wordcloud2)
 library(gridExtra)
 library(ngram)
 library(shiny) 
+library(igraph)
 ```
 
 ### Step 1 - Load the processed text data along with demographic information on contributors
@@ -39,7 +40,7 @@ library(shiny)
 We use the processed data for our analysis and combine it with the demographic information available.
 
 ```{r load data, warning=FALSE, message=FALSE}
-hm_data <- read_csv("../output/processed_moments.csv")
+hm_data <- read_csv("/Users/Yiming/Desktop/Fall2018-Proj1-Yiming001/output/processed_moments.csv")
 
 urlfile<-'https://raw.githubusercontent.com/rit-public/HappyDB/master/happydb/data/demographic.csv'
 demo_data <- read_csv(urlfile)
@@ -71,13 +72,15 @@ hm_data <- hm_data %>%
                                         months_3 = "3m", hours_24 = "24h"))
 ```
 
+
+
 ```{r}
 datatable(hm_data)
 ```
 ### Create a bag of words using the text data
 
 ```{r bag of words, warning=FALSE, message=FALSE}
-bag_of_words <-  hm_data %>%
+bag_of_words <- hm_data %>%
   unnest_tokens(word, text)
 
 word_count <- bag_of_words %>%
@@ -206,7 +209,6 @@ This shiny app visualizes summary of data and displays the data table itself.
 
 ```{r shiny server, warning=FALSE, message=FALSE}
 server <- function(input, output, session) {
-  
   pt1 <- reactive({
     if(!input$topFreqB) return(NULL)
     word_count %>%
@@ -260,53 +262,12 @@ server <- function(input, output, session) {
   
   
   
-  selectedAttribute <- reactive({
-    list(atr = input$attribute)
-  })
-  
-  output$scatter <- renderPlot({
-    temp <- bag_of_words %>%
-      count(!!as.name(selectedAttribute()$atr), word) %>%
-      group_by(!!as.name(selectedAttribute()$atr)) %>%
-      mutate(proportion = n / sum(n)) %>% 
-      select(-n) %>% 
-      spread(!!as.name(selectedAttribute()$atr), proportion)
-    
-      ggplot(temp, 
-             aes_string(x = colnames(temp)[2], y = colnames(temp)[3]),
-             color = abs(colnames(temp)[3] - colnames(temp)[2])) +
-      geom_abline(color = "gray40", lty = 2) +
-      geom_jitter(alpha = 0.1, size = 1, width = 0.3, height = 0.3) +
-      geom_text(aes(label = word), check_overlap = TRUE, vjust = 1.5) +
-      scale_x_log10(labels = percent_format()) +
-      scale_y_log10(labels = percent_format()) +
-      scale_color_gradient(limits = c(0, 0.001), low = "darkslategray4", high = "gray75") +
-      theme(legend.position="none")
-  })
   
   
   
-  selectedBigram <- reactive({
-    list(var = input$factor)
-  })
-  
-  output$bar <- renderPlot({
-    hm_bigrams %>%
-      count(!!as.name(selectedBigram()$var), bigram, sort = TRUE) %>%
-      group_by(!!as.name(selectedBigram()$var)) %>%
-      top_n(input$topBigrams) %>%
-      ungroup() %>%
-      mutate(bigram = reorder(bigram, n)) %>%
-      ggplot(aes(bigram, n, fill = !!as.name(selectedBigram()$var))) +
-      geom_col(show.legend = FALSE) +
-      facet_wrap(as.formula(paste("~", selectedBigram()$var)), ncol = 2, scales = "free") +
-      coord_flip()
-  })
   
   
-  output$table <- DT::renderDataTable({
-    DT::datatable(hm_data)
-  })
+  
 }
 ```
 
